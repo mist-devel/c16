@@ -345,6 +345,7 @@ set_global_assignment -name ENABLE_DRC_SETTINGS OFF
 set_location_assignment PLL_1 -to pll_c16|altpll_component|auto_generated|pll1
 set_global_assignment -name AUTO_SHIFT_REGISTER_RECOGNITION OFF
 set_global_assignment -name SYSTEMVERILOG_FILE c16_mist.sv
+set_global_assignment -name QIP_FILE "mist-modules/mist.qip"
 set_global_assignment -name VHDL_FILE tap_fifo.vhd
 set_global_assignment -name VHDL_FILE c1530.vhd
 set_global_assignment -name VHDL_FILE gen_ram.vhd
@@ -359,7 +360,6 @@ set_global_assignment -name VERILOG_FILE c16_keymatrix.v
 set_global_assignment -name VERILOG_FILE c16.v
 set_global_assignment -name VERILOG_FILE ps2receiver.v
 set_global_assignment -name VERILOG_FILE basic_rom.v
-set_global_assignment -name QIP_FILE "../../mist-modules/mist.qip"
 set_global_assignment -name VHDL_FILE c1541/gcr_floppy.vhd
 set_global_assignment -name VHDL_FILE c1541/spram.vhd
 set_global_assignment -name VHDL_FILE c1541/gen_rom.vhd
