@@ -73,7 +73,7 @@ module c16_mist (
 // it to control the menu on the OSD 
 parameter CONF_STR = {
         "C16;PRGTAP;",
-        "S,D64,Mount Disk;",
+        "S0U,D64,Mount Disk;",
         "F,ROM,Load Kernal;",
         "T6,Play/Stop tape;",
         "O7,Tape sound,Off,On;",
@@ -270,6 +270,7 @@ wire sd_dout_strobe;
 wire [7:0] sd_din;
 wire sd_din_strobe;
 wire img_mounted;
+wire [31:0] img_size;
 wire [8:0] sd_buff_addr;
 
 // include user_io module for arm controller communication
@@ -311,6 +312,7 @@ user_io #(.STRLEN($size(CONF_STR)>>3)) user_io (
 	.sd_din_strobe  ( sd_din_strobe  ),
 	.sd_buff_addr   ( sd_buff_addr   ),
 	.img_mounted    ( img_mounted    ),
+	.img_size       ( img_size       ),
 
 	.status         ( status         )
 );
@@ -832,8 +834,9 @@ c1541_sd c1541_sd (
 	.clk32 ( clk32 ),
 	.reset ( reset ),
 
-   .disk_change ( img_mounted ), 
-   .disk_num ( 10'd0 ), // always 0 on MiST, the image is selected by the OSD menu
+	.disk_change ( img_mounted ),
+	.disk_mount  ( |img_size ),
+	.disk_num ( 10'd0 ), // always 0 on MiST, the image is selected by the OSD menu
 
 	.iec_atn_i  ( c1541_iec_atn_i  ),
 	.iec_data_i ( c1541_iec_data_i ),
