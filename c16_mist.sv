@@ -71,6 +71,7 @@ module c16_mist (
 
 // the configuration string is returned to the io controller to allow
 // it to control the menu on the OSD 
+`include "build_id.v"
 parameter CONF_STR = {
         "C16;PRGTAP;",
         "S0U,D64,Mount Disk;",
@@ -81,7 +82,8 @@ parameter CONF_STR = {
         "O3,Joysticks,Normal,Swapped;",
         "O4,Memory,64k,16k;",
         "O89,SID,Off,6581,8580;",
-        "T5,Reset;"
+        "T5,Reset;",
+        "V",`BUILD_DATE
 };
 
 localparam ROM_MEM_START = 25'h10000;
