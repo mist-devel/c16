@@ -19,46 +19,112 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>. 
 //
 
-module c16_mist (
-   input  	 CLOCK_27,
+module c16_mist_top (
+	input         CLOCK_27,
+`ifdef USE_CLOCK_50
+	input         CLOCK_50,
+`endif
 
-	// LED outputs
-   output 	 LED, // LED Yellow
-	
-   // SDRAM interface
-   inout [15:0]  SDRAM_DQ, // SDRAM Data bus 16 Bits
-   output [12:0] SDRAM_A, // SDRAM Address bus 13 Bits
-   output 	 SDRAM_DQML, // SDRAM Low-byte Data Mask
-   output 	 SDRAM_DQMH, // SDRAM High-byte Data Mask
-   output 	 SDRAM_nWE, // SDRAM Write Enable
-   output 	 SDRAM_nCAS, // SDRAM Column Address Strobe
-   output 	 SDRAM_nRAS, // SDRAM Row Address Strobe
-   output 	 SDRAM_nCS, // SDRAM Chip Select
-   output [1:0]  SDRAM_BA, // SDRAM Bank Address
-   output 	 SDRAM_CLK, // SDRAM Clock
-   output 	 SDRAM_CKE, // SDRAM Clock Enable
-  
-   // SPI interface to arm io controller
-   output 	 SPI_DO,
-   input 	 SPI_DI,
-   input 	 SPI_SCK,
-   input 	 SPI_SS2,
-   input 	 SPI_SS3,
-   input 	 SPI_SS4,
-   input 	 CONF_DATA0, 
+	output        LED,
+	output [VGA_BITS-1:0] VGA_R,
+	output [VGA_BITS-1:0] VGA_G,
+	output [VGA_BITS-1:0] VGA_B,
+	output        VGA_HS,
+	output        VGA_VS,
 
-   output 	 AUDIO_L, // sigma-delta DAC output left
-   output 	 AUDIO_R, // sigma-delta DAC output right
+	input         SPI_SCK,
+	inout         SPI_DO,
+	input         SPI_DI,
+	input         SPI_SS2,    // data_io
+	input         SPI_SS3,    // OSD
+	input         CONF_DATA0, // SPI_SS for user_io
 
-   output 	 VGA_HS,
-   output 	 VGA_VS,
-   output [5:0]  VGA_R,
-   output [5:0]  VGA_G,
-   output [5:0]  VGA_B,
+`ifdef USE_QSPI
+	input         QSCK,
+	input         QCSn,
+	inout   [3:0] QDAT,
+`endif
+`ifndef NO_DIRECT_UPLOAD
+	input         SPI_SS4,
+`endif
 
-   input     UART_RX,
-   output    UART_TX
+	output [12:0] SDRAM_A,
+	inout  [15:0] SDRAM_DQ,
+	output        SDRAM_DQML,
+	output        SDRAM_DQMH,
+	output        SDRAM_nWE,
+	output        SDRAM_nCAS,
+	output        SDRAM_nRAS,
+	output        SDRAM_nCS,
+	output  [1:0] SDRAM_BA,
+	output        SDRAM_CLK,
+	output        SDRAM_CKE,
+
+`ifdef DUAL_SDRAM
+	output [12:0] SDRAM2_A,
+	inout  [15:0] SDRAM2_DQ,
+	output        SDRAM2_DQML,
+	output        SDRAM2_DQMH,
+	output        SDRAM2_nWE,
+	output        SDRAM2_nCAS,
+	output        SDRAM2_nRAS,
+	output        SDRAM2_nCS,
+	output  [1:0] SDRAM2_BA,
+	output        SDRAM2_CLK,
+	output        SDRAM2_CKE,
+`endif
+
+	output        AUDIO_L,
+	output        AUDIO_R,
+`ifdef I2S_AUDIO
+	output        I2S_BCK,
+	output        I2S_LRCK,
+	output        I2S_DATA,
+`endif
+`ifdef USE_AUDIO_IN
+	input         AUDIO_IN,
+`endif
+	input         UART_RX,
+	output        UART_TX
+
 );
+
+`ifdef NO_DIRECT_UPLOAD
+localparam bit DIRECT_UPLOAD = 0;
+wire SPI_SS4 = 1;
+`else
+localparam bit DIRECT_UPLOAD = 1;
+`endif
+
+`ifdef USE_QSPI
+localparam bit QSPI = 1;
+assign QDAT = 4'hZ;
+`else
+localparam bit QSPI = 0;
+`endif
+
+`ifdef VGA_8BIT
+localparam VGA_BITS = 8;
+`else
+localparam VGA_BITS = 6;
+`endif
+
+// remove this if the 2nd chip is actually used
+`ifdef DUAL_SDRAM
+assign SDRAM2_A = 13'hZZZZ;
+assign SDRAM2_BA = 0;
+assign SDRAM2_DQML = 0;
+assign SDRAM2_DQMH = 0;
+assign SDRAM2_CKE = 0;
+assign SDRAM2_CLK = 0;
+assign SDRAM2_nCS = 1;
+assign SDRAM2_DQ = 16'hZZZZ;
+assign SDRAM2_nCAS = 1;
+assign SDRAM2_nRAS = 1;
+assign SDRAM2_nWE = 1;
+`endif
+
+`include "build_id.v"
 
 // -------------------------------------------------------------------------
 // ------------------------------ user_io ----------------------------------
@@ -91,12 +157,24 @@ localparam TAP_MEM_START = 25'h20000;
 
 reg uart_rxD;
 reg uart_rxD2;
-
+wire ear_input;
 // UART_RX synchronizer
 always @(posedge clk28) begin
         uart_rxD <= UART_RX;
         uart_rxD2 <= uart_rxD;
 end
+
+`ifdef USE_AUDIO_IN
+reg ainD;
+reg ainD2;
+always @(posedge clk28) begin
+        ainD <= AUDIO_IN;
+        ainD2 <= ainD;
+end
+assign ear_input = ainD2;
+`else
+assign ear_input = uart_rxD2;
+`endif
 
 assign UART_TX = ~cass_motor;
 
@@ -245,18 +323,23 @@ sdram sdram (
 reg last_mem16k;
 reg [31:0] reset_cnt;
 wire reset = (reset_cnt != 0);
-always @(posedge clk28) begin
-	last_mem16k <= memory_16k;
-
-	// long reset on startup and when io controller reboots
-   if(status[0] || !pll_locked)
+always @(posedge clk28, negedge pll_locked) begin
+	if (!pll_locked) begin
+		// long reset on startup 
 		reset_cnt <= 32'd28000000;
-	// short reset on reset button, reset osd or when io controller is
-	// done downloading or when memory mapping changes
-	else if(buttons[1] || osd_reset || rom_download || (memory_16k != last_mem16k))
-      reset_cnt <= 32'd65536;
-   else if(reset_cnt != 0)
-      reset_cnt <= reset_cnt - 32'd1;
+	end
+	else begin
+		last_mem16k <= memory_16k;
+		// long reset when io controller reboots
+		if(status[0])
+			reset_cnt <= 32'd28000000;
+		// short reset on reset button, reset osd or when io controller is
+		// done downloading or when memory mapping changes
+		else if(buttons[1] || osd_reset || rom_download || (memory_16k != last_mem16k))
+			reset_cnt <= 32'd65536;
+		else if(reset_cnt != 0)
+			reset_cnt <= reset_cnt - 32'd1;
+	end
 end
 
 // signals to connect io controller with virtual sd card
@@ -409,9 +492,8 @@ wire [7:0] zp_ovl_dout =
 	zp_9d_sel?reg_9d[7:0]:zp_9e_sel?reg_9d[15:8]:
 	8'hff;
 	
-// the address taken from the first to bytes of a prg file tell
-// us where the file is to go in memory
-reg 	   ioctl_ram_wr;
+reg        ioctl_ram_wr;
+reg [ 7:0] ioctl_ram_data;
 reg [24:0] ioctl_sdram_addr;
 reg [ 7:0] ioctl_sdram_data;
 reg        ioctl_sdram_write;
@@ -422,17 +504,25 @@ always @(posedge clk28) begin
 
 	last_clkref <= clkref;
 
-	if(ioctl_sdram_write) 
-		ioctl_ram_wr <= 1'b0;
+	// C16 time slice - clkref=1, IO controller - clkref=0
+	if (~clkref & last_clkref) begin
+		ioctl_sdram_write <= ioctl_ram_wr;
+		ioctl_ram_wr <= 0;
+		if (ioctl_ram_wr) ioctl_sdram_data <= ioctl_ram_data;
+	end
+	if (clkref & ~last_clkref) begin
+		if (ioctl_sdram_write) ioctl_sdram_addr <= ioctl_sdram_addr + 1'd1;
+		ioctl_sdram_write <= 0;
+	end
 
 	// data io has a byte for us
 	if(ioctl_wr) begin
 		if (prg_download) begin
+			// the address taken from the first to bytes of a prg file tell
+			// us where the file is to go in memory
 			if(ioctl_addr == 0) ioctl_sdram_addr[7:0] <= ioctl_data;
 			else if (ioctl_addr == 25'h1) ioctl_sdram_addr[24:8] <= { 9'b0, ioctl_data };
 			else 
-				// io controller sent a new byte. Store it until it can be
-				// saved in RAM
 				ioctl_ram_wr <= 1'b1;
 		end else if (tap_download) begin
 			if(ioctl_addr == 0) ioctl_sdram_addr <= TAP_MEM_START;
@@ -441,17 +531,11 @@ always @(posedge clk28) begin
 			if((ioctl_index == 8'h0 && ioctl_addr == 25'h4000) || (ioctl_index == 8'h3 && ioctl_addr == 0)) ioctl_sdram_addr <= ROM_MEM_START;
 			if((ioctl_index == 8'h0 && ioctl_addr[16:14] != 0) || ioctl_index == 8'h3) ioctl_ram_wr <= 1'b1;
 		end
+		// io controller sent a new byte. Store it until it can be
+		// saved in RAM
+		ioctl_ram_data <= ioctl_data;
 	end
 
-	// C16 time slice - clkref=1, IO controller - clkref=0
-	if (~clkref & last_clkref) begin
-		ioctl_sdram_write <= ioctl_ram_wr;
-		if (ioctl_ram_wr) ioctl_sdram_data <= ioctl_data;
-	end
-	if (clkref & ~last_clkref) begin
-		if (ioctl_sdram_write) ioctl_sdram_addr <= ioctl_sdram_addr + 1'd1;
-		ioctl_sdram_write <= 0;
-	end
 end
 
 // ---------------------------------------------------------------------------------
@@ -516,7 +600,7 @@ c1530 c1530
     .cass_motor(cass_motor),
     .cass_sense(cass_sense),
     .osd_play_stop_toggle(tap_play),
-    .ear_input(uart_rxD2)
+    .ear_input(ear_input)
 );
 
 // ---------------------------------------------------------------------------------
@@ -524,7 +608,7 @@ c1530 c1530
 // ---------------------------------------------------------------------------------
 wire hs, vs;
 
-mist_video #(.COLOR_DEPTH(4), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .OSD_AUTO_CE(0)) mist_video (
+mist_video #(.COLOR_DEPTH(4), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .OSD_AUTO_CE(0), .OUT_COLOR_DEPTH(VGA_BITS)) mist_video (
 	.clk_sys     ( clk28      ),
 
 	// OSD SPI interface
@@ -684,7 +768,7 @@ C16 #(.INTERNAL_ROM(0)) c16 (
 
 // the FPGATED uses two different clocks for NTSC and PAL mode.
 // Switching the clocks may crash the system. We might need to force a reset it.
-wire pll_locked = pll_c1541_locked && pll_c16_locked;
+wire pll_locked = pll_c16_locked;
 wire ntsc = ~c16_pal;
 
 // A PLL to derive the system clock from the MiSTs 27MHz
