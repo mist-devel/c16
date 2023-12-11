@@ -32,6 +32,20 @@ module c16_mist_top (
 	output        VGA_HS,
 	output        VGA_VS,
 
+`ifdef USE_HDMI
+	output        HDMI_RST,
+	output  [7:0] HDMI_R,
+	output  [7:0] HDMI_G,
+	output  [7:0] HDMI_B,
+	output        HDMI_HS,
+	output        HDMI_VS,
+	output        HDMI_PCLK,
+	output        HDMI_DE,
+	inout         HDMI_SDA,
+	inout         HDMI_SCL,
+	input         HDMI_INT,
+`endif
+
 	input         SPI_SCK,
 	inout         SPI_DO,
 	input         SPI_DI,
@@ -81,6 +95,9 @@ module c16_mist_top (
 	output        I2S_LRCK,
 	output        I2S_DATA,
 `endif
+`ifdef SPDIF_AUDIO
+	output        SPDIF,
+`endif
 `ifdef USE_AUDIO_IN
 	input         AUDIO_IN,
 `endif
@@ -107,6 +124,21 @@ localparam bit QSPI = 0;
 localparam VGA_BITS = 8;
 `else
 localparam VGA_BITS = 6;
+`endif
+
+`ifdef USE_HDMI
+localparam bit HDMI = 1;
+assign HDMI_RST = 1'b1;
+`else
+localparam bit HDMI = 0;
+`endif
+
+`ifdef BIG_OSD
+localparam bit BIG_OSD = 1;
+`define SEP "-;",
+`else
+localparam bit BIG_OSD = 0;
+`define SEP
 `endif
 
 // remove this if the 2nd chip is actually used
@@ -357,9 +389,19 @@ wire sd_din_strobe;
 wire img_mounted;
 wire [31:0] img_size;
 wire [8:0] sd_buff_addr;
+`ifdef USE_HDMI
+wire        i2c_start;
+wire        i2c_read;
+wire  [6:0] i2c_addr;
+wire  [7:0] i2c_subaddr;
+wire  [7:0] i2c_rdata;
+wire  [7:0] i2c_wdata;
+wire        i2c_ack;
+wire        i2c_end;
+`endif
 
 // include user_io module for arm controller communication
-user_io #(.STRLEN($size(CONF_STR)>>3)) user_io (
+user_io #(.STRLEN($size(CONF_STR)>>3), .FEATURES(32'h0 | (BIG_OSD << 13) | (HDMI << 14))) user_io (
 	.conf_str       ( CONF_STR       ),
 
 	.clk_sys        ( clk28          ),
@@ -384,6 +426,18 @@ user_io #(.STRLEN($size(CONF_STR)>>3)) user_io (
 	.ps2_mouse_clk  ( ps2_mouse_clk  ),
 	.ps2_mouse_data ( ps2_mouse_data ),
 
+
+	.status         ( status         ),
+`ifdef USE_HDMI
+	.i2c_start      ( i2c_start      ),
+	.i2c_read       ( i2c_read       ),
+	.i2c_addr       ( i2c_addr       ),
+	.i2c_subaddr    ( i2c_subaddr    ),
+	.i2c_dout       ( i2c_wdata      ),
+	.i2c_din        ( i2c_rdata      ),
+	.i2c_ack        ( i2c_ack        ),
+	.i2c_end        ( i2c_end        ),
+`endif
 	.sd_lba         ( sd_lba         ),
 	.sd_rd          ( sd_rd          ),
 	.sd_wr          ( sd_wr          ),
@@ -397,9 +451,7 @@ user_io #(.STRLEN($size(CONF_STR)>>3)) user_io (
 	.sd_din_strobe  ( sd_din_strobe  ),
 	.sd_buff_addr   ( sd_buff_addr   ),
 	.img_mounted    ( img_mounted    ),
-	.img_size       ( img_size       ),
-
-	.status         ( status         )
+	.img_size       ( img_size       )
 );
 
 // ---------------------------------------------------------------------------------
@@ -608,7 +660,7 @@ c1530 c1530
 // ---------------------------------------------------------------------------------
 wire hs, vs;
 
-mist_video #(.COLOR_DEPTH(4), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .OSD_AUTO_CE(0), .OUT_COLOR_DEPTH(VGA_BITS)) mist_video (
+mist_video #(.COLOR_DEPTH(4), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .OSD_AUTO_CE(0), .BIG_OSD(BIG_OSD), .OUT_COLOR_DEPTH(VGA_BITS)) mist_video (
 	.clk_sys     ( clk28      ),
 
 	// OSD SPI interface
@@ -653,12 +705,78 @@ mist_video #(.COLOR_DEPTH(4), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .OSD_AUTO_CE
 assign VGA_HS = (~no_csync & tv15khz & ~ypbpr) ? c16_cs : hs;
 assign VGA_VS = (~no_csync & tv15khz & ~ypbpr) ? 1'b1 : vs;
 
+`ifdef USE_HDMI
+i2c_master #(28_000_000) i2c_master (
+	.CLK         (clk28),
+	.I2C_START   (i2c_start),
+	.I2C_READ    (i2c_read),
+	.I2C_ADDR    (i2c_addr),
+	.I2C_SUBADDR (i2c_subaddr),
+	.I2C_WDATA   (i2c_wdata),
+	.I2C_RDATA   (i2c_rdata),
+	.I2C_END     (i2c_end),
+	.I2C_ACK     (i2c_ack),
+
+	//I2C bus
+	.I2C_SCL     (HDMI_SCL),
+	.I2C_SDA     (HDMI_SDA)
+);
+
+mist_video #(.COLOR_DEPTH(4), .OSD_COLOR(3'd5), .SD_HCNT_WIDTH(10), .OSD_AUTO_CE(0), .OUT_COLOR_DEPTH(8), .USE_BLANKS(1'b1), .BIG_OSD(BIG_OSD), .VIDEO_CLEANER(1'b1)) hdmi_video (
+	.clk_sys     ( clk28      ),
+
+	// OSD SPI interface
+	.SPI_SCK     ( SPI_SCK    ),
+	.SPI_SS3     ( SPI_SS3    ),
+	.SPI_DI      ( SPI_DI     ),
+
+	// scanlines (00-none 01-25% 10-50% 11-75%)
+	.scanlines   ( scanlines  ),
+
+	// non-scandoubled pixel clock divider 0 - clk_sys/4, 1 - clk_sys/2
+	.ce_divider  ( 1'b0       ),
+
+	// 0 = HVSync 31KHz, 1 = CSync 15KHz
+	.scandoubler_disable ( 1'b0 ),
+	// disable csync without scandoubler
+	.no_csync    ( 1'b1       ),
+	// YPbPr always uses composite sync
+	.ypbpr       ( 1'b0       ),
+	// Rotate OSD [0] - rotate [1] - left or right
+	.rotate      ( 2'b00      ),
+	// composite-like blending
+	.blend       ( 1'b0       ),
+
+	// video in
+	.R           ( c16_r      ),
+	.G           ( c16_g      ),
+	.B           ( c16_b      ),
+
+	.HSync       ( c16_hs     ),
+	.VSync       ( ~c16_vs    ),
+	.HBlank      ( c16_hb     ),
+	.VBlank      ( c16_vb     ),
+
+	// MiST video output signals
+	.VGA_R       ( HDMI_R     ),
+	.VGA_G       ( HDMI_G     ),
+	.VGA_B       ( HDMI_B     ),
+	.VGA_VS      ( HDMI_VS    ),
+	.VGA_HS      ( HDMI_HS    ),
+	.VGA_DE      ( HDMI_DE    )
+);
+
+assign HDMI_PCLK = clk28;
+
+`endif
+
 // ---------------------------------------------------------------------------------
 // ------------------------------------ c16 core -----------------------------------
 // ---------------------------------------------------------------------------------
 
 // c16 generated video signals
 wire c16_hs, c16_vs, c16_cs;
+wire c16_hb, c16_vb;
 wire [3:0] c16_r;
 wire [3:0] c16_g;
 wire [3:0] c16_b;
@@ -703,6 +821,29 @@ sigma_delta_dac dac (
 	.aright   ( AUDIO_R )
 );
 
+wire [31:0] clk_rate = c16_pal ? 32'd28_375_168 : 32'd28_636_352;
+
+i2s i2s (
+	.reset(1'b0),
+	.clk(clk28),
+	.clk_rate(clk_rate),
+
+	.sclk(I2S_BCK),
+	.lrclk(I2S_LRCK),
+	.sdata(I2S_DATA),
+
+	.left_chan(audio_data_l[17:2]),
+	.right_chan(audio_data_r[17:2])
+);
+
+spdif spdif (
+	.clk_i(clk28),
+	.rst_i(1'b0),
+	.clk_rate_i(clk_rate),
+	.spdif_o(SPDIF),
+	.sample_i({audio_data_r[17:2], audio_data_l[17:2]})
+);
+
 // include the c16 itself
 C16 #(.INTERNAL_ROM(0)) c16 (
 	.CLK28   ( clk28 ),
@@ -711,6 +852,8 @@ C16 #(.INTERNAL_ROM(0)) c16 (
 	.HSYNC   ( c16_hs ),
 	.VSYNC   ( c16_vs ),
 	.CSYNC   ( c16_cs ),
+	.HBLANK  ( c16_hb ),
+	.VBLANK  ( c16_vb ),
 	.RED     ( c16_r ),
 	.GREEN   ( c16_g ),
 	.BLUE    ( c16_b ),

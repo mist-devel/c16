@@ -43,6 +43,8 @@ module ted(
 	 output wire csync,
 	 output reg hsync,
 	 output reg vsync,
+	 output reg blankh,
+	 output reg blankv,
 	 output wire irq,
 	 output wire ba,
 	 output reg mux,
@@ -1145,11 +1147,13 @@ always @*									// video pixel color generator
 	end
 
 always @(posedge clk)						// latch pixelcolor and multiplex it with blank signal
-	begin
-	if (tick8)
+	if (tick8) begin
 		if(~blanking)
 		colorreg<=pixelcolor;
 		else colorreg<=0;
+
+		blankh <= hblank;
+		blankv <= vblank;
 	end
 
 
