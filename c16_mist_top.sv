@@ -95,6 +95,12 @@ module c16_mist_top (
 	output        I2S_LRCK,
 	output        I2S_DATA,
 `endif
+`ifdef I2S_AUDIO_HDMI
+	output        HDMI_MCLK,
+	output        HDMI_BCK,
+	output        HDMI_LRCK,
+	output        HDMI_SDATA,
+`endif
 `ifdef SPDIF_AUDIO
 	output        SPDIF,
 `endif
@@ -823,6 +829,7 @@ sigma_delta_dac dac (
 
 wire [31:0] clk_rate = c16_pal ? 32'd28_375_168 : 32'd28_636_352;
 
+`ifdef I2S_AUDIO
 i2s i2s (
 	.reset(1'b0),
 	.clk(clk28),
@@ -835,7 +842,17 @@ i2s i2s (
 	.left_chan(audio_data_l[17:2]),
 	.right_chan(audio_data_r[17:2])
 );
+`ifdef I2S_AUDIO_HDMI
+assign HDMI_MCLK = 0;
+always @(posedge clk28) begin
+	HDMI_BCK <= I2S_BCK;
+	HDMI_LRCK <= I2S_LRCK;
+	HDMI_SDATA <= I2S_DATA;
+end
+`endif
+`endif
 
+`ifdef SPDIF_AUDIO
 spdif spdif (
 	.clk_i(clk28),
 	.rst_i(1'b0),
@@ -843,6 +860,7 @@ spdif spdif (
 	.spdif_o(SPDIF),
 	.sample_i({audio_data_r[17:2], audio_data_l[17:2]})
 );
+`endif
 
 // include the c16 itself
 C16 #(.INTERNAL_ROM(0)) c16 (
