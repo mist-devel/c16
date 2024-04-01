@@ -814,10 +814,10 @@ always @(negedge clk28) begin
 		{ kernal_dl_wr, basic_dl_wr, c1541_dl_wr } <= 0;
 end
 
-wire audio_l_out, audio_r_out;
+wire  [5:0] audio_out;
 wire [17:0] sid_audio;
-wire [17:0] audio_data_l = sid_audio + { audio_l_out, tap_sound & ~cass_read, 14'd0 };
-wire [17:0] audio_data_r = sid_audio + { audio_r_out, tap_sound & ~cass_read, 14'd0 };
+wire [17:0] audio_data_l = sid_audio + {2'd0, audio_out, audio_out, 4'd0 } + { 1'b0, tap_sound & ~cass_read, 14'd0 };
+wire [17:0] audio_data_r = sid_audio + {2'd0, audio_out, audio_out, 4'd0 } + { 1'b0, tap_sound & ~cass_read, 14'd0 };
 
 sigma_delta_dac dac (
 	.clk      ( clk28),
@@ -911,10 +911,9 @@ C16 #(.INTERNAL_ROM(0)) c16 (
 	.CASS_MOTOR  ( cass_motor ),
 	.CASS_SENSE  ( cass_sense ),
 
-	.SID_TYPE    ( sid_type    ),
-	.SID_AUDIO   ( sid_audio   ),
-	.AUDIO_L     ( audio_l_out ),
-	.AUDIO_R     ( audio_r_out ),
+	.SID_TYPE    ( sid_type   ),
+	.SID_AUDIO   ( sid_audio  ),
+	.AUDIO_PCM   ( audio_out  ),
 
 	.PAL         ( c16_pal ),
 	

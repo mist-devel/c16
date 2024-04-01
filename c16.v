@@ -82,6 +82,7 @@ module C16 (
 
 	output AUDIO_L,
 	output AUDIO_R,
+	output [5:0] AUDIO_PCM,
 
 	input [13:0] dl_addr,
 	input [7:0] dl_data,
@@ -182,6 +183,7 @@ ted mos8360(
 	.aec(aec),
 	.k(kbus),
 	.snd(sound),
+	.snd_pcm(AUDIO_PCM),
 	.pal(PAL),
 	.cpuenable(cpuenable)
 	);

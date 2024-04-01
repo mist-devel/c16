@@ -54,6 +54,7 @@ module ted(
 	 output reg cs1,
 	 output reg aec,
 	 output wire snd,
+	 output wire [5:0] snd_pcm,
 	 output wire pal,
 	 input wire [7:0] k,
 	 output wire cpuenable						// this TED signals is needed only for FPGA bustiming and FPGA internal cpu. If external CPU is used, it is not needed.
@@ -1615,7 +1616,7 @@ assign data_out=(datahold)?dataout_reg:8'hff;
 //--------------------------------------------------------------------------------
 
 assign snd=(ch1audio&ch1pwm)|(ch2audio&ch2pwm);		// mixing audio channel signals
-
+assign snd_pcm = (ch1audio ? digivolume : 5'd0) + (ch2audio ? digivolume : 5'd0);
 
 always @(posedge clk)						//	audio cycle counter divides single clock by 4
 	begin
