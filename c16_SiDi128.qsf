@@ -225,10 +225,10 @@ set_location_assignment PIN_A13 -to I2S_DATA
 
 set_location_assignment PIN_W19 -to AUDIO_IN
 
-set_location_assignment PIN_AB16 -to EXP1
-set_location_assignment PIN_AB18 -to EXP2
-set_location_assignment PIN_AA3 -to EXP3
-set_location_assignment PIN_AA5 -to EXP4
+set_location_assignment PIN_AB16 -to UART_RX
+set_location_assignment PIN_AB18 -to UART_TX
+set_location_assignment PIN_AA3 -to MIDI_IN
+set_location_assignment PIN_AA5 -to MIDI_OUT
 set_location_assignment PIN_Y7 -to EXP5
 set_location_assignment PIN_Y8 -to EXP6
 set_location_assignment PIN_Y10 -to EXP7
