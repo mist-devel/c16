@@ -280,7 +280,7 @@ always @(posedge CLK28)		// reset tries to emulate the length of a real reset
 // assign VSYNC=1'b1; // set scart mode to RGB for TV
 
 assign c16_addr=(~mux)?c16_addrlatch:cpu_addr&ted_addr;																	// C16 address bus
-assign c16_data=(mux)?c16_datalatch:cpu_data&ted_data&ram_data&kernal_data&basic_data&keyport_data&cass_data&sid_data;	// C16 data bus
+assign c16_data=(mux)?c16_datalatch:cpu_data&ted_data&ram_data&kernal_data&basic_data&keyport_data&cass_data&sid_data&openbus_data;	// C16 data bus
 
 always @(posedge CLK28)							// addres and data bus latching emulates dynamic memory behaviour of these buses 
 	begin
@@ -310,6 +310,9 @@ assign     port_in[4] = CASS_READ;
 wire       cass_sel   = cpu_addr[15:4] == 12'hFD1;
 wire [7:0] cass_data  = { 5'b11111, cass_sel ? CASS_SENSE : 1'b1, 2'b11 };
 assign     CASS_WRITE = port_out[6];
+
+wire       openbus_sel = cpu_addr[15:5] == {8'hFD, 3'b111};
+wire [7:0] openbus_data = openbus_sel ? c16_datalatch : 8'hff;
 
 // SID extension
 reg sid_clk_en;
