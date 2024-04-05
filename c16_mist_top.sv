@@ -179,7 +179,7 @@ assign SDRAM2_nWE = 1;
 parameter CONF_STR = {
         "C16;PRGTAP;",
         "S0U,D64,Mount Disk;",
-        "F,ROM,Load Kernal;",
+        "F3,ROM,Load Kernal;",
         "T6,Play/Stop tape;",
         "O7,Tape sound,Off,On;",
         "O12,Scanlines,Off,25%,50%,75%;",
