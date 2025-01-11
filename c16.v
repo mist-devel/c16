@@ -91,7 +91,13 @@ module C16 (
 
 	output PAL,
 	
+	input  RS232_RX,
 	output RS232_TX,
+	input  RS232_DCD,
+	input  RS232_DSR,
+	output RS232_DTRB,
+	output RS232_RTSB,
+
 	output RGBS
     );
 
@@ -101,7 +107,7 @@ parameter INTERNAL_ROM = 1;
 wire [15:0] c16_addr;
 wire [15:0] ted_addr;
 wire [15:0] cpu_addr;
-wire [7:0] c16_data,ted_data,ram_data,cpu_data,basic_data,kernal_data,port_in,port_out,keyport_data;
+wire [7:0] c16_data,ted_data,ram_data,cpu_data,basic_data,kernal_data,port_in,port_out,keyport_data,uart_data;
 wire [7:0] keyboard_row,kbus,kbus_kbd;
 wire [7:0] keyscancode;
 wire keyreceived;
@@ -109,6 +115,7 @@ wire [6:0] c16_color;
 wire mux,cpuenable;
 wire aec,rdy;
 wire keyboardio;
+wire uart_cs;
 wire sound;
 reg [7:0] c16_datalatch=8'b0;
 reg sreset=1'b0;
@@ -144,7 +151,7 @@ end
 		.clk(CLK28), 
 		.reset(sreset), 
 		.enable(cpuenable && !WAIT),  
-		.irq_n(irq_n), 
+		.irq_n(ted_irq_n & acia_irq_n), 
 		.data_in(c16_data), 
 		.data_out(cpu_data), 
 		.address(cpu_addr),
@@ -157,7 +164,7 @@ end
 	);
 
 // TED 8360 instance	
-wire irq_n, cpuclk;
+wire ted_irq_n, cpuclk;
 
 ted mos8360(
 	.clk(CLK28),
@@ -173,7 +180,7 @@ ted mos8360(
 	.vsync(VSYNC),
 	.blankh(HBLANK),
 	.blankv(VBLANK),
-	.irq(irq_n),
+	.irq(ted_irq_n),
 	.ba(rdy),
 	.mux(mux),
 	.ras(RAS),
@@ -251,11 +258,54 @@ mos6529 keyport(
     .rw(RW),
     .cs(keyboardio)
     );
-	 
+
+assign uart_cs=(c16_addr[15:4] == 12'hfd0);
+reg clk_18432en;
+reg  [31:0] clk_cnt_uart;
+wire [31:0] clk_rate = PAL ? 32'd28_375_168 : 32'd28_636_352;
+
+always @(posedge CLK28) begin
+	if(sreset) begin
+		clk_cnt_uart <= 32'd0;
+		clk_18432en <= 1'b0;
+	end else begin
+		clk_18432en <= 1'b0;
+
+		if(clk_cnt_uart < clk_rate)
+			clk_cnt_uart <= clk_cnt_uart + 32'd1_843_200;
+		else begin
+			clk_cnt_uart <= clk_cnt_uart - clk_rate + 32'd1_843_200;
+			clk_18432en <= 1'b1;
+		end
+	end
+end
+
+wire acia_irq_n;
+
+gen_uart_mos_6551 uart
+(
+	.reset(sreset),
+	.clk(CLK28),
+	.clk_en(clk_18432en),
+	.din(c16_data),
+	.dout(uart_data),
+	.rnw(RW),
+	.irq_n(acia_irq_n),
+	.cs(uart_cs),
+	.rs(c16_addr[1:0]),
+
+	.cts_n(1'b0),
+	.rx(RS232_RX),
+	.tx(RS232_TX),
+	.dcd_n(~RS232_DCD),
+	.dsr_n(~RS232_DSR),
+	.dtr_n(RS232_DTRB),
+	.rts_n(RS232_RTSB)
+);
+
 assign AUDIO_R=sound;
 assign AUDIO_L=sound;
 assign RGBS=1'bz;				// VGA/RGBS jumper is not implemented in current version
-assign RS232_TX=1'bz;		// RS232 is not implemented in current version
 
 assign keyboardio=(c16_addr[15:4]==12'hfd3)?1'b1:1'b0;		// as we don't have PLA, keyport is identified here
 
@@ -280,7 +330,7 @@ always @(posedge CLK28)		// reset tries to emulate the length of a real reset
 // assign VSYNC=1'b1; // set scart mode to RGB for TV
 
 assign c16_addr=(~mux)?c16_addrlatch:cpu_addr&ted_addr;																	// C16 address bus
-assign c16_data=(mux)?c16_datalatch:cpu_data&ted_data&ram_data&kernal_data&basic_data&keyport_data&cass_data&sid_data&openbus_data;	// C16 data bus
+assign c16_data=(mux)?c16_datalatch:cpu_data&ted_data&ram_data&kernal_data&basic_data&keyport_data&cass_data&sid_data&uart_data&openbus_data;	// C16 data bus
 
 always @(posedge CLK28)							// addres and data bus latching emulates dynamic memory behaviour of these buses 
 	begin

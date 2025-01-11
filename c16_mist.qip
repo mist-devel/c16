@@ -14,6 +14,7 @@ set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) c16_key
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) c16.v]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) ps2receiver.v]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) basic_rom.v]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) gen_uart.v]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) c1541/gcr_floppy.vhd]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) c1541/spram.vhd]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) c1541/gen_rom.vhd]

@@ -107,9 +107,11 @@ module c16_mist_top (
 `ifdef USE_AUDIO_IN
 	input         AUDIO_IN,
 `endif
+`ifdef USE_EXPANSION
+	output        EXP5,
+`endif
 	input         UART_RX,
 	output        UART_TX
-
 );
 
 `ifdef NO_DIRECT_UPLOAD
@@ -182,6 +184,9 @@ parameter CONF_STR = {
         "F3,ROM,Load Kernal;",
         "T6,Play/Stop tape;",
         "O7,Tape sound,Off,On;",
+`ifndef USE_EXPANSION
+        "OA,Userport,Tape,UART;",
+`endif
         "O12,Scanlines,Off,25%,50%,75%;",
         "O3,Joysticks,Normal,Swapped;",
         "O4,Memory,64k,16k;",
@@ -193,6 +198,7 @@ parameter CONF_STR = {
 localparam ROM_MEM_START = 25'h10000;
 localparam TAP_MEM_START = 25'h20000;
 
+wire uart_tx;
 reg uart_rxD;
 reg uart_rxD2;
 wire ear_input;
@@ -210,11 +216,16 @@ always @(posedge clk28) begin
         ainD2 <= ainD;
 end
 assign ear_input = ainD2;
+assign UART_TX = uart_tx;
 `else
 assign ear_input = uart_rxD2;
 `endif
 
-assign UART_TX = ~cass_motor;
+`ifdef USE_EXPANSION
+assign EXP5 = ~cass_motor;
+`else
+assign UART_TX = uart_en ? uart_tx : ~cass_motor;
+`endif
 
 // the status register is controlled by the on screen display (OSD)
 wire [31:0] status;
@@ -227,6 +238,7 @@ wire memory_16k = status[4];
 wire osd_reset = status[5];
 wire tap_play = status[6];
 wire tap_sound = status[7];
+wire uart_en = status[10];
 wire [1:0] sid_type = status[9:8];
 wire [1:0] buttons;
 
@@ -862,6 +874,8 @@ spdif spdif (
 );
 `endif
 
+wire UART_RTSB;
+
 // include the c16 itself
 C16 #(.INTERNAL_ROM(0)) c16 (
 	.CLK28   ( clk28 ),
@@ -917,7 +931,12 @@ C16 #(.INTERNAL_ROM(0)) c16 (
 
 	.PAL         ( c16_pal ),
 	
-	.RS232_TX    (),
+	.RS232_RX    ( uart_rxD2 ),
+	.RS232_TX    ( uart_tx   ),
+	.RS232_DCD   ( 1'b1 ),
+	.RS232_DSR   ( UART_RTSB ),
+	.RS232_DTRB  ( ),
+	.RS232_RTSB  ( UART_RTSB ),
 	.RGBS        ()
 );
 
