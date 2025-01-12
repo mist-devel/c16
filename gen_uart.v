@@ -444,7 +444,7 @@ always @(posedge clk) begin
 	end
 end
 
-gen_uart_rx gen_uart_rx(
+gen_uart_rx #(.ALT_OVR(1'b1)) gen_uart_rx(
 	.reset(reset),
 	.reset_flags(!rdav_n),
 	.clk(clk),
@@ -499,6 +499,11 @@ module gen_uart_rx(
 	output reg   ovr,
 	output reg   full
 );
+
+// alternate overrun handling
+// default - if overrun, don't copy the shift register to rx_data
+// AY-31015 copies anyway
+parameter ALT_OVR = 1'b0;
 
 reg  [5:0] cnt;
 reg  [5:0] start_pos;
@@ -581,13 +586,19 @@ always @(posedge clk) begin
 				full <= 1;
 				if (!rx_in) // check for valid stop bit
 					fe <= 1;
-				if (full)
-					// If the previous word wasn't read by the CPU, signal overrun,
-					// and don't copy the shift register to the receive data register.
-					ovr <= 1;
-				else begin
+				if (ALT_OVR) begin
+					if (full) ovr <= 1;
 					rx_data <= rx_next;
 					pe <= parity_err & parity_en;
+				end else begin
+					if (full)
+						// If the previous word wasn't read by the CPU, signal overrun,
+						// and don't copy the shift register to the receive data register.
+						ovr <= 1;
+					else begin
+						rx_data <= rx_next;
+						pe <= parity_err & parity_en;
+					end
 				end
 			end
 		end

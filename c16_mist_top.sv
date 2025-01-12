@@ -216,13 +216,13 @@ always @(posedge clk28) begin
         ainD2 <= ainD;
 end
 assign ear_input = ainD2;
-assign UART_TX = uart_tx;
 `else
 assign ear_input = uart_rxD2;
 `endif
 
 `ifdef USE_EXPANSION
 assign EXP5 = ~cass_motor;
+assign UART_TX = uart_tx;
 `else
 assign UART_TX = uart_en ? uart_tx : ~cass_motor;
 `endif
