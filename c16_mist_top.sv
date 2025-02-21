@@ -108,7 +108,10 @@ module c16_mist_top (
 	input         AUDIO_IN,
 `endif
 `ifdef USE_EXPANSION
-	output        EXP5,
+	input         UART_CTS,
+	output        UART_RTS,
+	inout         EXP7,
+	inout         MOTOR_CTRL,
 `endif
 	input         UART_RX,
 	output        UART_TX
@@ -198,7 +201,7 @@ parameter CONF_STR = {
 localparam ROM_MEM_START = 25'h10000;
 localparam TAP_MEM_START = 25'h20000;
 
-wire uart_tx;
+wire uart_tx, uart_rtsb, uart_cts;
 reg uart_rxD;
 reg uart_rxD2;
 wire ear_input;
@@ -221,10 +224,14 @@ assign ear_input = uart_rxD2;
 `endif
 
 `ifdef USE_EXPANSION
-assign EXP5 = ~cass_motor;
+assign MOTOR_CTRL = cass_motor ? 1'b0 : 1'bZ;
+assign EXP7 = 1'bZ;
 assign UART_TX = uart_tx;
+assign UART_RTS = uart_rtsb;
+assign uart_cts = UART_CTS;
 `else
 assign UART_TX = uart_en ? uart_tx : ~cass_motor;
+assign uart_cts = uart_rtsb;
 `endif
 
 // the status register is controlled by the on screen display (OSD)
@@ -874,8 +881,6 @@ spdif spdif (
 );
 `endif
 
-wire UART_RTSB;
-
 // include the c16 itself
 C16 #(.INTERNAL_ROM(0)) c16 (
 	.CLK28   ( clk28 ),
@@ -889,7 +894,7 @@ C16 #(.INTERNAL_ROM(0)) c16 (
 	.RED     ( c16_r ),
 	.GREEN   ( c16_g ),
 	.BLUE    ( c16_b ),
-	
+
 	.RAS     ( c16_ras ),
 	.CAS     ( c16_cas ),
 	.RW      ( c16_rw ),
@@ -904,7 +909,7 @@ C16 #(.INTERNAL_ROM(0)) c16 (
 
 	.JOY0    ( jsB[4:0] ),
 	.JOY1    ( jsA[4:0] ),
-	
+
 	.PS2DAT  ( ps2_kbd_data ),
 	.PS2CLK  ( ps2_kbd_clk  ),
 
@@ -912,7 +917,7 @@ C16 #(.INTERNAL_ROM(0)) c16 (
 	.dl_data         ( rom_dl_data ),
 	.kernal_dl_write ( kernal_dl_wr   ),
 	.basic_dl_write  ( basic_dl_wr    ),
-	
+
 	.IEC_DATAOUT ( c16_iec_data_o ),
 	.IEC_DATAIN  ( c16_iec_data_i ),
 	.IEC_CLKOUT  ( c16_iec_clk_o ),
@@ -930,13 +935,13 @@ C16 #(.INTERNAL_ROM(0)) c16 (
 	.AUDIO_PCM   ( audio_out  ),
 
 	.PAL         ( c16_pal ),
-	
+
 	.RS232_RX    ( uart_rxD2 ),
 	.RS232_TX    ( uart_tx   ),
 	.RS232_DCD   ( 1'b1 ),
-	.RS232_DSR   ( UART_RTSB ),
+	.RS232_DSR   ( uart_cts  ),
 	.RS232_DTRB  ( ),
-	.RS232_RTSB  ( UART_RTSB ),
+	.RS232_RTSB  ( uart_rtsb ),
 	.RGBS        ()
 );
 

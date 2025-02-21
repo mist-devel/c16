@@ -1,7 +1,7 @@
 //============================================================================
 //
 //  8-bit UART modules
-//  MOS 6551/MC6850/AY-31015
+//  MOS 6551/MC6850/AY-31015/TR-1602
 //  Copyright (C) 2025 Gyorgy Szombathelyi
 //
 //  This program is free software; you can redistribute it and/or modify it
@@ -449,7 +449,7 @@ gen_uart_rx #(.ALT_OVR(1'b1)) gen_uart_rx(
 	.reset_flags(!rdav_n),
 	.clk(clk),
 	.clk_en(rx_clk_en),
-	.clk_mult(1'd1),
+	.clk_mult(2'd1),
 	.wordlen(wordlen),
 	.parity_en(parity_en),
 	.parity_ctrl({1'b0, parity_even}),
@@ -466,7 +466,104 @@ gen_uart_tx gen_uart_tx(
 	.reset(reset),
 	.clk(clk),
 	.clk_en(tx_clk_en),
-	.clk_mult(1'd1),
+	.clk_mult(2'd1),
+	.wordlen(wordlen),
+	.parity_en(parity_en),
+	.parity_ctrl({1'b0, parity_even}),
+	.tx_data(tdr),
+	.start(tx_start),
+	.busy(tx_busy),
+	.tx(tx)
+);
+
+endmodule
+
+///////////////////////////////////////////////////////////
+///////////////////////// TR-1602 /////////////////////////
+///////////////////////////////////////////////////////////
+
+module gen_uart_tr_1602(
+	input        reset,
+	input        clk,
+	input        rx_clk_en, // bitrate x 16
+	input        tx_clk_en, // bitrate x 16
+	input  [7:0] din,
+	output [7:0] dout,
+	input        thrl,  // transmitter holding register load
+	// status
+	output       pe,    // parity error
+	output       fe,    // framing error
+	output       oe,    // overrun error
+	output reg   thre,  // transmitter holding register empty
+	output       tre,   // transmitter register empty
+	output       dr,    // data received
+	input        drr_n, // data received reset
+	// control
+	input        crl, // control register load
+	input        pi,  // parity inhibit
+	input        sbs, // stop bit select (not implemented)
+	input  [1:0] wls, // word length select (5-6-7-8 bits)
+	input        epe, // even parity enable
+	// uart pins
+	input        rx,
+	output       tx
+
+);
+
+reg   [1:0] wordlen;
+reg         parity_en;
+reg         parity_even;
+reg   [7:0] tdr;
+
+reg         tx_start;
+wire        tx_busy;
+assign      tre = ~tx_busy;
+
+always @(posedge clk) begin
+	if (reset) begin
+		thre <= 1;
+		tx_start <= 0;
+		parity_en <= 0;
+		parity_even <= 0;
+		wordlen <= 0;
+	end else begin
+		if (crl) {parity_en, parity_even, wordlen} <= {~pi, epe, ~wls};
+
+		tx_start <= 0;
+		if (thrl) begin
+			tdr <= din;
+			thre <= 0;
+		end
+		if (!thrl & !thre & !tx_busy) begin
+			tx_start <= 1;
+			thre <= 1;
+		end
+	end
+end
+
+gen_uart_rx #(.ALT_OVR(1'b1)) gen_uart_rx(
+	.reset(reset),
+	.reset_flags(!drr_n),
+	.clk(clk),
+	.clk_en(rx_clk_en),
+	.clk_mult(2'd1),
+	.wordlen(wordlen),
+	.parity_en(parity_en),
+	.parity_ctrl({1'b0, parity_even}),
+	.rx_data(dout),
+	.rx(rx),
+	.rx_echo(),
+	.fe(fe),
+	.pe(pe),
+	.ovr(oe),
+	.full(dr)
+);
+
+gen_uart_tx gen_uart_tx(
+	.reset(reset),
+	.clk(clk),
+	.clk_en(tx_clk_en),
+	.clk_mult(2'd1),
 	.wordlen(wordlen),
 	.parity_en(parity_en),
 	.parity_ctrl({1'b0, parity_even}),
