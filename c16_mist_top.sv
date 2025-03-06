@@ -107,7 +107,7 @@ module c16_mist_top (
 `ifdef USE_AUDIO_IN
 	input         AUDIO_IN,
 `endif
-`ifdef USE_EXPANSION
+`ifdef SIDI128_EXPANSION
 	input         UART_CTS,
 	output        UART_RTS,
 	inout         EXP7,
@@ -187,7 +187,7 @@ parameter CONF_STR = {
         "F3,ROM,Load Kernal;",
         "T6,Play/Stop tape;",
         "O7,Tape sound,Off,On;",
-`ifndef USE_EXPANSION
+`ifndef SIDI128_EXPANSION
         "OA,Userport,Tape,UART;",
 `endif
         "O12,Scanlines,Off,25%,50%,75%;",
@@ -223,7 +223,7 @@ assign ear_input = ainD2;
 assign ear_input = uart_rxD2;
 `endif
 
-`ifdef USE_EXPANSION
+`ifdef SIDI128_EXPANSION
 assign MOTOR_CTRL = cass_motor ? 1'b0 : 1'bZ;
 assign EXP7 = 1'bZ;
 assign UART_TX = uart_tx;
