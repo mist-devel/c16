@@ -59,6 +59,7 @@ reg  [7:0] tdr;
 reg        tdr_full;
 wire       tx_busy;
 reg        tx_irq;
+wire       tx_out;
 
 reg        rx_reset;
 wire [7:0] rx_data;
@@ -68,6 +69,7 @@ wire       rx_fe;
 wire       rx_pe;
 reg        rx_nie;
 reg        rx_irq;
+wire       rx_echo;
 
 reg        rx_full_d;
 
@@ -81,6 +83,7 @@ wire [7:0] status = {~irq_n, dsrb_latch, dcdb_latch, ~tdr_full, rx_full, rx_ovr,
 
 assign     dtr_n = ~dtr;
 assign     rts_n = tx_ctrl == 0;
+assign     tx = echo ? rx_echo : tx_ctrl == 3 ? 1'b0 : tx_out;
 
 always @(posedge clk) begin
 	if (reset | sreset) begin
@@ -91,7 +94,7 @@ always @(posedge clk) begin
 		rx_full_d <= 0;
 		tx_start <= 0;
 		dtr <= 0;
-		rx_nie <= 1;
+		rx_nie <= 1; // MOS datasheet says 1, Rockwell says 0. Apple II SSC expects 0.
 		tx_ctrl <= 0;
 		echo <= 0;
 		tdr_full <= 0;
@@ -127,7 +130,7 @@ always @(posedge clk) begin
 				tx_irq <= 0;
 				ext_irq <= 0;
 			end
-			if (tdr_full & dtr & !tx_busy & !cts_n & !rts_n) begin
+			if (tdr_full & dtr & !tx_busy & !cts_n) begin
 				tx_start <= 1;
 				tdr_full <= 0;
 				tx_irq <= 1;
@@ -165,8 +168,6 @@ end
 wire div_en;
 gen_uart_mos_6551_baud_gen baud_gen(reset, clk, clk_en, clk_div, div_en);
 
-wire rx_echo, tx_out;
-assign tx = echo ? rx_echo : tx_out;
 
 gen_uart_rx gen_uart_rx(
 	.reset(reset | sreset),
@@ -289,8 +290,10 @@ reg        tx_start;
 wire       tx_busy;
 reg        tdr_full;
 reg  [1:0] tx_ctrl;
+wire       tx_out;
 
 assign rts_n = tx_ctrl == 2;
+assign tx = tx_ctrl == 3 ? 1'b0 : tx_out;
 
 always @(posedge clk) begin
 	if (reset | sreset) begin
@@ -327,7 +330,7 @@ always @(posedge clk) begin
 		end
 		if (cs & rnw & rs)
 			rx_reset <= 1; // read RDR
-		if (!cs & tdr_full & !tx_busy & !cts_n & !rts_n) begin
+		if (!cs & tdr_full & !tx_busy & !cts_n) begin
 			tx_start <= 1;
 			tdr_full <= 0;
 		end
@@ -376,7 +379,7 @@ gen_uart_tx gen_uart_tx(
 	.tx_data(tdr),
 	.start(tx_start),
 	.busy(tx_busy),
-	.tx(tx)
+	.tx(tx_out)
 );
 
 endmodule
